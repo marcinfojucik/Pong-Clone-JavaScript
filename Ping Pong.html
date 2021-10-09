@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="X-UA-Compatible" content="ie=edge">
+<title>Gra-Tenis</title>
+</head>
+<body>
+<section class="main-section">
+<div id="gameOverMenu" class="game-over">
+<button id="againBtn" class="try-again"></button>
+</div>
+<canvas id="canvas"></canvas>
+<div class="score">
+<div class="title">
+<h1>Wynik</h1>
+</div>
+<div class="score-item">
+<h2 class="score-text"> Gracz <span id="playerScore" class="player-first"> 0 </span> : <span id="aiScore" class="player-second">0</span>
+Komputer</h2>
+</div>
+</div>
+<div id="instruction" class="instruction-section">
+<h2>Instrukcja</h2>
+<button id="instructionBtn" class="instruction-btn">Pokaż</button>
+<div id="instruction-hidden" class="instruction-text">
+<ul>
+<li>Nowa Gra - wciśnij klawisz S</li>
+<li>Pauza/Powrót Do Gry - wciśnij klawisz P</li>
+<li>Poruszanie się - Ruch Myszy</li>
+<li>Jeśli zdobędziesz lub stracisz punkt - kliknij w dowlonym miejscu aby wznowić rozgrywkę</li>
+</ul>
+</div>
+</div>
+</section>
+<style>
+body {
+    margin: 0;
+    padding: 0;
+	background-color: darkgray;
+}
+.main-section {
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    margin: 20px auto;
+}
+.game-over {
+    opacity: 0;
+    pointer-events: none;
+    transition: .5s;
+    filter: blur(20px);
+    transform: scale(.5);
+    background-color: red;
+    position: fixed;
+}
+.game-over.active {
+    display: flex;
+    justify-content: center;
+    opacity: 1;
+    pointer-events: auto;
+    z-index: 1;
+    filter: blur(0);
+    transform: scale(1);
+}
+button {
+    width: 200px;
+    height: 80px;
+    font-size: 2rem;
+    color: #ffffff;
+    background-color: darkgreen;
+    letter-spacing: 5px;
+}
+.try-again {
+    position: absolute;
+    top: 50%;
+    left: calc(50% - 100px);
+    z-index: 1;
+}
+canvas {
+    border: 8px solid darkgreen;
+    position: relative;
+}
+.score {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    margin-top: 80px;
+    text-transform: uppercase;
+    letter-spacing: 5px;
+}
+.score-text span {
+    color: darkgreen;
+    font-size: 3rem;
+}
+.score-text .player-first {
+    color: #7FFF00;
+}
+.score-text .player-second {
+    color: yellow;
+}
+.instruction-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 40px;
+}
+.instruction-section h2 {
+    text-transform: uppercase;
+    letter-spacing: 5px;
+}
+.instruction-btn {
+    text-transform: uppercase;
+}
+.instruction-text {
+    display: none;
+    margin-top: 20px;
+    /*transition: all 0.5s ease-in-out;*/
+}
+.instruction-text ul li {
+    font-size: 1.6rem;
+    letter-spacing: 2px;
+}
+footer {
+    text-align: center;
+    margin-top: 60px;
+    background-color: #919db7;
+    padding: 5px;
+    font-size: 1.2rem;
+    color: #ffffff;
+}
+footer a {
+    text-decoration: none;
+    color: darkgreen;
+}
+
+footer a:hover {
+    color: #ffffff;
+    transition: all 0.5s ease-in-out;
+}
+</style>
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+canvas.width = 1000;
+canvas.height = 500;
+//przestrzeń gry
+const cw = canvas.width;
+const ch = canvas.height;
+//piłka
+let ballSize = 10;
+let ballX = cw / 2 - ballSize / 2;
+let ballY = ch / 2 - ballSize / 2;
+let ballSpeedX = 5;
+let ballSpeedY = 5;
+//paletka
+const paddleHeight = 100;
+const paddleWidth = 20;
+//dystatns między graczami
+const playerX = 70;
+const aiX = 910;
+//dystans graczy na arenie
+let playerY = 200;
+let aiY = 200;
+let playerYSpeed = 30;
+
+const lineWidth = 6;
+const lineHeight = 16;
+//poruszanie się paletki
+let up = false;
+let down = false;
+//Tabela Wyników
+const playerScoreSpan = document.getElementById('playerScore');
+const aiScoreSpan = document.getElementById('aiScore');
+let playerScore = 0;
+let aiScore = 0;
+const winingScore = 2;
+
+let gamePaused = false;
+
+let gameInterval = window.setInterval(function () {});
+//ustawienia stołu
+function table() {
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, 1000, 500);
+
+    for (let linePosition = 20; linePosition < ch; linePosition += 30) {
+        ctx.fillStyle = "gray";
+        ctx.fillRect(cw / 2 - lineWidth / 2, linePosition, lineWidth, lineHeight);
+    }
+}
+function drawBall() {
+    ctx.beginPath();
+    ctx.arc(ballX, ballY, ballSize, 0, 2 * Math.PI);
+    ctx.fillStyle = "white";
+    ctx.fill();
+}
+//ustawienia piłki
+function ball() {
+    moveBall();
+    hitBall();
+    addScore();
+}
+//poruszanie się piłki
+function moveBall() {
+    drawBall();
+    ballX += ballSpeedX;
+    ballY += ballSpeedY;
+
+    if (ballY <= 0 || ballY + ballSize >= ch) {
+        ballSpeedY = -ballSpeedY;
+        speedUp();
+    }
+
+    if (ballX <= 0 || ballX + ballSize >= cw) {
+        ballSpeedX = -ballSpeedX;
+    }
+}
+//paletka gracza
+function player() {
+    ctx.fillStyle = "#7FFF00";
+    ctx.fillRect(playerX, playerY, paddleWidth, paddleHeight);
+}
+//paletka komputera
+function ai() {
+    ctx.fillStyle = "yellow";
+    ctx.fillRect(aiX, aiY, paddleWidth, paddleHeight);
+}
+topCanvas = canvas.offsetTop;
+//poruszanie się paletki gracza
+function playerPosition(e) {
+    playerY = e.clientY - topCanvas - paddleHeight / 2;
+
+    if (playerY < 0) {
+        playerY = 0;
+    }
+    if (playerY >= ch - paddleHeight) {
+        playerY = ch - paddleHeight;
+    }
+}
+//szybkość piłki
+function speedUp() {
+    if (ballSpeedX > 0 && ballSpeedX < 16) {
+        ballSpeedX += 0.2;
+    } else if (ballSpeedX < 0 && ballSpeedX > -16) {
+        ballSpeedX -= 0.2;
+    }
+
+    if (ballSpeedY > 0 && ballSpeedY < 16) {
+        ballSpeedY += 0.2;
+    } else if (ballSpeedY < 0 && ballSpeedY > -16) {
+        ballSpeedY -= 0.2;
+    }
+}
+//poruszanie się paletki komputera
+function aiPosition() {
+    const middlePaddle = aiY + paddleHeight / 2;
+    const middleBall = ballY + ballSize / 2;
+
+    if (ballX >= 500) {
+        if (middlePaddle - middleBall > 200) {
+            aiY -= 12;
+        } else if (middlePaddle - middleBall > 40) {
+            aiY -= 6;
+        } else if (middlePaddle - middleBall < -200) {
+            aiY += 12;
+        } else if (middlePaddle - middleBall < -40) {
+            aiY += 6;
+        }
+    } else if (ballX <= 500 && ballX > 150) {
+        if (middlePaddle - middleBall > 100) {
+            aiY -= 4;
+        } else if (middlePaddle - middleBall < -100) {
+            aiY += 4;
+        }
+    }
+}
+//Wyświetlanie się Wyniku Gracza i Komputera
+function addScore() {
+    if (ballX <= playerX) {
+        aiScore++;
+        aiScoreSpan.textContent = aiScore;
+
+        //Pokaż komunikat o wygraniej
+        showScreen()
+        //Zresetuj piłkę po zdobyciu punktu
+        resetBall();
+    }
+    if (ballX >= aiX) {
+        playerScore++;
+        playerScoreSpan.textContent = playerScore;
+
+        showScreen();
+        resetBall();
+    }
+}
+//ustawienia resetu piłki po zdobyciu punktu
+function resetBall() {
+    ballSpeedX = 0;
+    ballSpeedY = 0;
+    ballX = cw / 2 - ballSize / 2;
+    ballY = ch / 2 - ballSize / 2;
+    clickToMoveBall();
+}
+function clickToMoveBall() {
+    canvas.addEventListener('click', play);
+}
+function play() {
+    ballSpeedX = 5;
+    ballSpeedY = 5;
+}
+//odbijanie się piłki od paletki
+function hitBall() {
+    if (ballX <= playerX + paddleWidth && ballY > playerY && ballY < playerY + paddleHeight) {
+        ballSpeedX = -ballSpeedX;
+    }
+    if (ballX >= aiX - paddleWidth && ballY >= aiY && ballY <= aiY + paddleHeight) {
+        ballSpeedX = -ballSpeedX;
+    }
+}
+//pokaż ekran wygraniej/przegranej
+function showScreen() {
+    if (playerScore == winingScore) {
+        endGame();
+        ctx.fillStyle = "white";
+        ctx.font = "20px Georgia";
+        ctx.fillText("Gratulacje Wygrałeś", cw / 2 - 120, ch / 2 - 100);
+        showGameOverBtn();
+        againBtn.textContent = 'Zagraj Ponownie';
+    } else if (aiScore == winingScore) {
+        endGame();
+        ctx.fillStyle = "white";
+        ctx.font = "20px Georgia";
+        ctx.fillText("Nie Tym Razem. Przegrałeś.", cw / 2 - 120, ch / 2 - 100);
+        showGameOverBtn();
+        againBtn.textContent = 'Spróbuj Ponownie';
+    }
+}
+//Ekran Końca Gry
+function showGameOverBtn() {
+    gameOverMenu = document.getElementById('gameOverMenu');
+    againBtn = document.getElementById('againBtn');
+
+    gameOverMenu.className = 'active';
+    againBtn.addEventListener('click', welcomeGame);
+}
+//Reset Wyniku
+function resetScore() {
+    playerScore = 0;
+    playerScoreSpan.textContent = playerScore;
+    aiScore = 0;
+    aiScoreSpan.textContent = aiScore;
+}
+//Ekran Startowy
+function welcomeGame() {
+    table();
+    clickKey();
+    //background opacity
+    ctx.fillStyle = ctx.fillStyle = "rgba(91, 98, 126, 0.9)";
+    ctx.fillRect(0, 0, 1000, 500);
+    //text canvas
+    ctx.fillStyle = "#84b71c";
+    ctx.font = "45px Georgia";
+    ctx.fillText("Kliknij Klawisz S aby rozpocząć grę", cw / 2 - 300, ch / 2);
+    gameOverMenu = document.getElementById('gameOverMenu');
+    againBtn = document.getElementById('againBtn');
+
+    gameOverMenu.className = 'game-over';
+}
+//inicjacja Gry
+function initGame() {
+    gamePaused = false;
+    open = false;
+    gameInterval = window.setInterval(function () {
+        table();
+        ball();
+        player();
+        ai();
+        aiPosition();
+    }, 1000 / 60);
+    resetScore();
+}
+//Ekran Końca Gry
+function endGame() {
+    clearInterval(gameInterval);
+    table();
+    player();
+    ai();
+    ctx.fillStyle = ctx.fillStyle = "rgba(91, 98, 126, 0.9)";
+    ctx.fillRect(0, 0, 1000, 500);
+    ctx.fillStyle = "white";
+    ctx.font = "60px Georgia";
+    ctx.fillText("Koniec Gry", cw / 2 - 120, ch / 2);
+}
+//Zatrzymanie Gry w czasie rozgrywki
+function togglePause() {
+    if (gamePaused) {
+        resumeGame();
+    } else {
+        ctx.fillStyle = '#5b627e';
+        ctx.fillRect(0, 0, 1000, 500);
+        ctx.fillStyle = "#84b71c";
+        ctx.font = "60px Georgia";
+        ctx.fillText("Kliknij P aby powrócić do gry", cw / 2 - 300, ch / 2);
+        pauseGame();
+    }
+}
+//powrót gry z trybu pauzy
+function resumeGame() {
+    if (gamePaused) {
+        gamePaused = false;
+        initGame();
+    }
+}
+//Ustawienia Trybu Pauzy
+function pauseGame() {
+    if (!gamePaused) {
+        gamePaused = true;
+        clearInterval(gameInterval);
+    }
+}
+function clickKey() {
+    document.onkeyup = function (e) {
+        if (e.keyCode == 83) {
+            console.log('start');
+            //setInterval(initGame, 1000 / 60);
+            //intervalId = setInterval(initGame, 1000 / 60);
+            initGame();
+        }
+    }
+}
+
+const instructionBtn = document.getElementById('instructionBtn');
+function toggleInstruction() {
+    let instruction = document.getElementById('instruction-hidden');
+
+    if (instruction.style.display == 'none' || instruction.style.display === '') {
+        instruction.style.display = 'block';
+    } else {
+        instruction.style.display = 'none';
+    }
+}
+
+window.addEventListener('keydown', function (e) {
+    switch (e.keyCode) {
+        case 80:
+            togglePause();
+            break;
+    }
+});
+welcomeGame();
+canvas.addEventListener('mousemove', playerPosition);
+instructionBtn.addEventListener('click', toggleInstruction);
+</script>
+</body>
+</html>
+
